@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bolsas Match</title>
+<style>
+  :root { --bg:#fff; --fg:#1a1a1a; --card:#f1f2f5; --ok:#1a7f37; --maybe:#b26a00; --no:#c62828; --muted:#666; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#16181d; --fg:#eaeaea; --card:#22252c; --ok:#4cc26a; --maybe:#f0a93b; --no:#ef6a6a; --muted:#9aa0aa; }
+  }
+  body { font-family: system-ui, sans-serif; background:var(--bg); color:var(--fg); max-width:720px; margin:0 auto; padding:16px; }
+  label { display:block; margin:10px 0; }
+  input, select { display:block; width:100%; padding:8px; margin-top:4px; box-sizing:border-box; }
+  button { padding:10px 18px; margin-top:8px; font-size:1em; }
+  .card { background:var(--card); border-radius:10px; padding:14px; margin:12px 0; }
+  .badge { font-weight:bold; }
+  .elegivel .badge { color:var(--ok); } .potencial .badge { color:var(--maybe); } .nao .badge { color:var(--no); }
+  .muted { color:var(--muted); font-size:0.9em; }
+  ul { padding-left:18px; margin:8px 0; }
+</style>
+</head>
+<body>
+<h1>Bolsas Match</h1>
+<p class="muted">Preenche o teu perfil para ver as bolsas compatíveis.</p>
+
+<form id="perfil">
+  <label>Nacionalidade (2 letras, ex.: AO)
+    <input id="nacionalidade" value="AO" maxlength="2"></label>
+  <label>Idade
+    <input id="idade" type="number" value="20" min="14" max="80"></label>
+  <label>Nível pretendido
+    <select id="nivel">
+      <option value="licenciatura">Licenciatura</option>
+      <option value="mestrado">Mestrado</option>
+      <option value="doutoramento">Doutoramento</option>
+    </select></label>
+  <label>Média (escala 0 a 20)
+    <input id="media" type="number" value="15" min="0" max="20" step="0.1"></label>
+  <label>Nível de inglês
+    <select id="ingles">
+      <option>nenhum</option><option>A1</option><option>A2</option><option>B1</option>
+      <option selected>B2</option><option>C1</option><option>C2</option>
+    </select></label>
+  <button type="submit">Ver bolsas</button>
+</form>
+
+<div id="resultado"></div>
+
+<script>
+const NIVEIS_IDIOMA = ["nenhum","A1","A2","B1","B2","C1","C2"];
+const ORDEM = { elegivel: 0, potencial: 1, nao: 2 };
+const ROTULO = { elegivel: "Elegível", potencial: "Potencialmente elegível", nao: "Não elegível" };
+let BOLSAS = [];
+
+// Protege contra texto malicioso vindo dos dados
+const esc = s => String(s ?? "").replace(/[&<>"']/g,
+  c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+
+function lerPerfil() {
+  return {
+    nacionalidade: document.getElementById("nacionalidade").value.trim().toUpperCase(),
+    idade: Number(document.getElementById("idade").value),
+    nivel: document.getElementById("nivel").value,
+    media: Number(document.getElementById("media").value),
+    ingles: document.getElementById("ingles").value
+  };
+}
+
+function avaliar(b, p) {
+  const ok = [], talvez = [], nao = [];
+  const hoje = new Date().toISOString().slice(0, 10);
+
+  if (Array.isArray(b.niveis) && b.niveis.length) {
+    if (b.niveis.includes(p.nivel)) ok.push("Aceita " + p.nivel);
+    else nao.push("Não oferece " + p.nivel);
+  } else talvez.push("Níveis de estudo por confirmar");
+
+  if (b.nacionalidades === null) talvez.push("Nacionalidades aceites por confirmar");
+  else if (b.nacionalidades.includes("*") || b.nacionalidades.includes(p.nacionalidade)) ok.push("Nacionalidade aceite");
+  else nao.push("Nacionalidade não aceite");
+
+  if (b.idade_max === null) talvez.push("Limite de idade por confirmar");
+  else if (p.idade <= b.idade_max) ok.push("Idade dentro do limite");
+  else nao.push("Idade acima do limite (" + b.idade_max + ")");
+
+  if (b.media_min === null) talvez.push("Média mínima por confirmar");
+  else if (p.media >= b.media_min) ok.push("Média suficiente");
+  else nao.push("Média abaixo do mínimo (" + b.media_min + ")");
+
+  for (const i of b.idiomas || []) {
+    const lingua = (i.lingua || "").toLowerCase();
+    if (i.nivel_min === null || i.obrigatorio === null) {
+      talvez.push("Requisito de " + i.lingua + " por confirmar");
+    } else if (lingua.startsWith("ingl")) {
+      const tem = NIVEIS_IDIOMA.indexOf(p.ingles), precisa = NIVEIS_IDIOMA.indexOf(i.nivel_min);
+      if (tem >= precisa) ok.push("Inglês suficiente");
+      else if (i.obrigatorio) nao.push("Inglês abaixo do exigido (" + i.nivel_min + ")");
+      else talvez.push("Inglês " + i.nivel_min + " recomendado");
+    } else talvez.push("Confirmar nível de " + i.lingua);
+  }
+
+  if (b.prazo && b.prazo < hoje) nao.push("Prazo terminado (" + b.prazo + ")");
+  else if (b.prazo && !b.prazo_confirmado) talvez.push("Prazo por confirmar (estimado: " + b.prazo + ")");
+  else if (b.prazo) ok.push("Prazo: " + b.prazo);
+
+  let estado = "elegivel";
+  if (nao.length) estado = "nao";
+  else if (talvez.length) estado = "potencial";
+  return { estado, ok, talvez, nao };
+}
+
+function cartao(b, r) {
+  const itens = [
+    ...r.ok.map(t => "✔ " + t),
+    ...r.talvez.map(t => "❓ " + t),
+    ...r.nao.map(t => "✖ " + t)
+  ].map(t => "<li>" + esc(t) + "</li>").join("");
+  const link = String(b.link_oficial || "").startsWith("https://")
+    ? '<a href="' + esc(b.link_oficial) + '" target="_blank" rel="noopener noreferrer">Site oficial</a>'
+    : "";
+  return '<div class="card ' + r.estado + '">' +
+    "<strong>" + esc(b.nome) + "</strong> · " + esc(b.pais_destino) +
+    '<div class="badge">' + ROTULO[r.estado] + "</div>" +
+    "<ul>" + itens + "</ul>" +
+    '<div class="muted">Verificado em ' + esc(b.verificado_em) + " · " + link + "</div></div>";
+}
+
+function mostrar() {
+  const p = lerPerfil();
+  const lista = BOLSAS.map(b => ({ b, r: avaliar(b, p) }))
+    .sort((x, y) => ORDEM[x.r.estado] - ORDEM[y.r.estado] ||
+                    String(x.b.prazo).localeCompare(String(y.b.prazo)));
+  document.getElementById("resultado").innerHTML =
+    lista.map(x => cartao(x.b, x.r)).join("") ||
+    "<p>Nenhuma bolsa encontrada.</p>";
+}
+
+document.getElementById("perfil").addEventListener("submit", e => { e.preventDefault(); mostrar(); });
+
+fetch("../dados/bolsas.json", { cache: "no-store" })
+  .then(r => r.json())
+  .then(d => { BOLSAS = d; mostrar(); })
+  .catch(() => {
+    document.getElementById("resultado").textContent =
+      "Não consegui ler dados/bolsas.json. Estás a abrir pelo servidor local?";
+  });
+</script>
+</body>
+</html>

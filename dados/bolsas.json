@@ -1,0 +1,34 @@
+[
+  {
+    "id": "stipendium-hungaricum",
+    "nome": "Stipendium Hungaricum",
+    "pais_destino": "Hungria",
+    "niveis": ["licenciatura", "mestrado", "doutoramento"],
+    "areas": ["qualquer"],
+    "nacionalidades": ["AO"],
+    "idade_max": null,
+    "media_min": null,
+    "idiomas": [{ "lingua": "inglês", "nivel_min": null, "obrigatorio": null }],
+    "cobre": ["propinas", "alojamento", "subsidio"],
+    "prazo": "2027-01-15",
+    "prazo_confirmado": false,
+    "link_oficial": "https://stipendiumhungaricum.hu",
+    "verificado_em": "2026-11-15"
+  },
+  {
+    "id": "turkiye-burslari",
+    "nome": "Türkiye Bursları",
+    "pais_destino": "Turquia",
+    "niveis": ["licenciatura", "mestrado", "doutoramento"],
+    "areas": ["qualquer"],
+    "nacionalidades": null,
+    "idade_max": null,
+    "media_min": null,
+    "idiomas": [],
+    "cobre": null,
+    "prazo": "2027-02-20",
+    "prazo_confirmado": false,
+    "link_oficial": "https://turkiyeburslari.gov.tr",
+    "verificado_em": "2026-11-15"
+  }
+]
